@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  services-identity:
+    image: doitsu2014/identity-service:latest
+    hostname: services-identity
+    environment:
+      - ASPNETCORE_ENVIRONMENT=DEVELOPMENT
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "5000:80"
+    networks:
+      - internal
+    volumes:
+      - ./data/identity-service/appsettings.json:/app/appsettings.json
+      - ./data/identity-service/logs:/app/logs
+
+  services-image-resource:
+    image: doitsu2014/image-resource-service:latest
+    hostname: services-image-resource
+    environment:
+      - ASPNETCORE_ENVIRONMENT=DEVELOPMENT
+      - ASPNETCORE_URLS=http://+:80
+    ports:
+      - "6000:80"
+    networks:
+      - internal
+    volumes:
+      - ./data/image-resource-service/appsettings.json:/app/appsettings.json
+      - ./data/image-resource-service/logs:/app/logs
+
+networks:
+  internal:
+    driver: overlay

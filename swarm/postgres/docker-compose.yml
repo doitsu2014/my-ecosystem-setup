@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:latest
+    hostname: postgres
+    restart: always
+    volumes:
+      - pg_data:/var/lib/postgres
+    environment:
+      POSTGRES_PASSWORD: zaQ@1234
+    ports:
+      - 5432:5432
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: overlay
+
+volumes:
+  pg_data:

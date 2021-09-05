@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:latest
+    hostname: postgres
+    restart: always
+    volumes:
+      - pg_data:/var/lib/postgres
+    environment:
+      POSTGRES_PASSWORD: zaQ@1234
+    ports:
+      - 5432:5432
+    networks:
+      - internal
+
+  pgadmin:
+    image: dpage/pgadmin4
+    hostname: pgadmin_container
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech 
+      PGADMIN_DEFAULT_PASSWORD: zaQ@1234
+    volumes:
+      - pg_admin_data:/root/.pgadmin
+    ports:
+      - 18080:80 
+    networks:
+      - internal
+    restart: unless-stopped
+
+
+networks:
+  internal:
+    driver: overlay
+
+volumes:
+  pg_data:
+  pg_admin_data:
