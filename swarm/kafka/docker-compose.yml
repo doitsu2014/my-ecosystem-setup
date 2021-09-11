@@ -73,7 +73,7 @@ services:
       KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: " "
       KAFKA_SSL_CLIENT_AUTH: requested
     volumes:
-      - ./secrets:/etc/kafka/secrets
+      - ./secrets/certificates:/etc/kafka/secrets
     networks:
       - network
 
@@ -102,7 +102,7 @@ services:
       KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: " "
       KAFKA_SSL_CLIENT_AUTH: requested
     volumes:
-      - ./secrets:/etc/kafka/secrets
+      - ./secrets/certificates:/etc/kafka/secrets
     networks:
       - network
 
@@ -131,7 +131,7 @@ services:
       KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: " "
       KAFKA_SSL_CLIENT_AUTH: requested
     volumes:
-      - ./secrets:/etc/kafka/secrets
+      - ./secrets/certificates:/etc/kafka/secrets
     networks:
       - network
 
