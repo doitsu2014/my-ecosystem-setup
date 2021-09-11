@@ -3,6 +3,7 @@ services:
   zookeeper-1:
     image: confluentinc/cp-zookeeper:latest
     hostname: zookeeper-1
+    container_name: zookeeper-1
     ports:
       - "22181:22181"
     environment:
@@ -13,11 +14,12 @@ services:
       ZOOKEEPER_SYNC_LIMIT: 2
       ZOOKEEPER_SERVERS: zookeeper-1:22888:23888;zookeeper-2:32888:33888;zookeeper-3:42888:43888
     networks:
-      - kafka
+      - network
 
   zookeeper-2:
     image: confluentinc/cp-zookeeper:latest
     hostname: zookeeper-2
+    container_name: zookeeper-2
     ports:
       - "32181:32181"
     environment:
@@ -28,11 +30,12 @@ services:
       ZOOKEEPER_SYNC_LIMIT: 2
       ZOOKEEPER_SERVERS: zookeeper-1:22888:23888;zookeeper-2:32888:33888;zookeeper-3:42888:43888
     networks:
-      - kafka
+      - network
 
   zookeeper-3:
     image: confluentinc/cp-zookeeper:latest
     hostname: zookeeper-3
+    container_name: zookeeper-3
     ports:
       - "42181:42181"
     environment:
@@ -43,11 +46,12 @@ services:
       ZOOKEEPER_SYNC_LIMIT: 2
       ZOOKEEPER_SERVERS: zookeeper-1:22888:23888;zookeeper-2:32888:33888;zookeeper-3:42888:43888
     networks:
-      - kafka
+      - network
 
   kafka-ssl-1:
     image: confluentinc/cp-kafka:latest
     hostname: kafka-ssl-1
+    container_name: kafka-ssl-1
     depends_on:
       - zookeeper-1
       - zookeeper-2
@@ -58,7 +62,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:22181,zookeeper-2:32181,zookeeper-3:42181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL_SSL:SSL,EXTERNAL_SSL:SSL
-      KAFKA_LISTENERS: INTERNAL_SSL://kafka-ssl-1:19092,EXTERNAL_SSL://:19093
+      KAFKA_LISTENERS: INTERNAL_SSL://kafka-ssl-1:19092,EXTERNAL_SSL://localhost:19093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL_SSL://kafka-ssl-1:19092,EXTERNAL_SSL://localhost:19093
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL_SSL
       KAFKA_SSL_KEYSTORE_FILENAME: kafka.broker1.keystore.jks
@@ -71,11 +75,12 @@ services:
     volumes:
       - ./secrets:/etc/kafka/secrets
     networks:
-      - kafka
+      - network
 
   kafka-ssl-2:
     image: confluentinc/cp-kafka:latest
     hostname: kafka-ssl-2
+    container_name: kafka-ssl-2
     depends_on:
       - zookeeper-1
       - zookeeper-2
@@ -86,7 +91,7 @@ services:
       KAFKA_BROKER_ID: 2
       KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:22181,zookeeper-2:32181,zookeeper-3:42181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL_SSL:SSL,EXTERNAL_SSL:SSL
-      KAFKA_LISTENERS: INTERNAL_SSL://kafka-ssl-2:29092,EXTERNAL_SSL://:29093
+      KAFKA_LISTENERS: INTERNAL_SSL://kafka-ssl-2:29092,EXTERNAL_SSL://localhost:29093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL_SSL://kafka-ssl-2:29092,EXTERNAL_SSL://localhost:29093
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL_SSL
       KAFKA_SSL_KEYSTORE_FILENAME: kafka.broker2.keystore.jks
@@ -99,11 +104,12 @@ services:
     volumes:
       - ./secrets:/etc/kafka/secrets
     networks:
-      - kafka
+      - network
 
   kafka-ssl-3:
     image: confluentinc/cp-kafka:latest
     hostname: kafka-ssl-3
+    container_name: kafka-ssl-3
     depends_on:
       - zookeeper-1
       - zookeeper-2
@@ -114,7 +120,7 @@ services:
       KAFKA_BROKER_ID: 3
       KAFKA_ZOOKEEPER_CONNECT: zookeeper-1:22181,zookeeper-2:32181,zookeeper-3:42181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL_SSL:SSL,EXTERNAL_SSL:SSL
-      KAFKA_LISTENERS: INTERNAL_SSL://kafka-ssl-3:39092,EXTERNAL_SSL://:39093
+      KAFKA_LISTENERS: INTERNAL_SSL://kafka-ssl-3:39092,EXTERNAL_SSL://localhost:39093
       KAFKA_ADVERTISED_LISTENERS: INTERNAL_SSL://kafka-ssl-3:39092,EXTERNAL_SSL://localhost:39093
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL_SSL
       KAFKA_SSL_KEYSTORE_FILENAME: kafka.broker3.keystore.jks
@@ -127,9 +133,12 @@ services:
     volumes:
       - ./secrets:/etc/kafka/secrets
     networks:
-      - kafka
+      - network
 
 networks:
-  kafka:
+  network:
     driver: overlay
     attachable: true
+    ipam:
+      config:
+        - subnet: 10.30.0.0/16
