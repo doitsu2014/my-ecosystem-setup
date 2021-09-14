@@ -1,0 +1,7 @@
+version: '3.8'
+services:
+  connect:
+    image: docker-hub.doitsu.tech/kafka-connect-custom
+    build:
+      context: .
+      dockerfile: ./kafka-connect-custom

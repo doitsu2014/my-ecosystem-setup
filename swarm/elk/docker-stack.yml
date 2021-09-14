@@ -1,7 +1,6 @@
-version: '3.3'
+version: '3.8'
 
 services:
-
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
     ports:
@@ -12,7 +11,7 @@ services:
         target: /usr/share/elasticsearch/config/elasticsearch.yml
     environment:
       network.publish_host: _eth0_
-      ES_JAVA_OPTS: "-Xmx512m -Xms512m"
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
       ELASTIC_PASSWORD: changeme
       # Set a predictable node name.
       node.name: elk_elasticsearch.{{.Task.Slot}}
@@ -26,7 +25,11 @@ services:
       - elk
     deploy:
       mode: replicated
-      replicas: 3
+      replicas: 3 
+      resources:
+        limits:
+          cpus: '4.00'
+          memory: 1000M
 
   logstash:
     image: docker.elastic.co/logstash/logstash:7.14.1
@@ -46,6 +49,10 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 300M
 
   kibana:
     image: docker.elastic.co/kibana/kibana:7.14.1
@@ -59,6 +66,10 @@ services:
     deploy:
       mode: replicated
       replicas: 1
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 300M
 
 configs:
 

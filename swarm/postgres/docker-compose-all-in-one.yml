@@ -12,7 +12,12 @@ services:
     ports:
       - 5432:5432
     networks:
-      - internal
+      - net
+    deploy:
+      resources:
+        limits:
+          cpus: '4.00'
+          memory: 2000M
 
   pgadmin:
     image: dpage/pgadmin4
@@ -25,12 +30,16 @@ services:
     ports:
       - 18080:80 
     networks:
-      - internal
+      - net
     restart: unless-stopped
-
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 500M
 
 networks:
-  internal:
+  net:
     driver: overlay
 
 volumes:
