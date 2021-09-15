@@ -71,7 +71,7 @@ services:
       resources:
         limits:
           cpus: '1.00'
-          memory: 200M
+          memory: 1000M
 
   connect:
     image: docker-hub.doitsu.tech/kafka-connect-customer:latest
@@ -133,8 +133,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
-          memory: 200M
+          cpus: '2.0.0'
+          memory: 300M
 
 networks:
   network:
