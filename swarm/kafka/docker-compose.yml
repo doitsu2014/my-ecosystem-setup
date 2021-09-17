@@ -133,7 +133,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0.0'
+          cpus: '2.00'
           memory: 300M
 
 networks:
@@ -145,7 +145,7 @@ networks:
         - subnet: 10.113.0.0/16
 
   es_elk:
-    external: true
+    # external: true
 
   postgres_net:
-    external: true
+    # external: true
