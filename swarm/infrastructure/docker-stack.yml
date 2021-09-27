@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   es_node:
@@ -16,7 +16,7 @@ services:
       # Set a predictable node name.
       node.name: es_node.{{.Task.Slot}}
       # Disable single-node discovery.
-      discovery.type: ''
+      discovery.type: ""
       # Use internal Docker round-robin DNS for unicast discovery.
       discovery.seed_hosts: tasks.es_node
       # Define initial masters, assuming a cluster size of at least 3.
@@ -28,10 +28,10 @@ services:
 
     deploy:
       mode: replicated
-      replicas: 3 
+      replicas: 3
       resources:
         limits:
-          cpus: '3.00'
+          cpus: "3.00"
           memory: 1000M
 
   es_kibana:
@@ -48,7 +48,7 @@ services:
       replicas: 1
       resources:
         limits:
-          cpus: '2.00'
+          cpus: "2.00"
           memory: 500M
 
   zookeeper:
@@ -65,7 +65,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.00'
+          cpus: "2.00"
           memory: 1000M
 
   broker:
@@ -79,7 +79,7 @@ services:
       - "9101:9101"
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
@@ -94,14 +94,14 @@ services:
       KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:29092
       CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
-      CONFLUENT_METRICS_ENABLE: 'true'
-      CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
+      CONFLUENT_METRICS_ENABLE: "true"
+      CONFLUENT_SUPPORT_CUSTOMER_ID: "anonymous"
     networks:
       - overlay
     deploy:
       resources:
         limits:
-          cpus: '4.00'
+          cpus: "4.00"
           memory: 2000M
 
   schema-registry:
@@ -114,14 +114,14 @@ services:
       - "8081:8081"
     environment:
       SCHEMA_REGISTRY_HOST_NAME: schema-registry
-      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'broker:29092'
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "broker:29092"
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     networks:
       - overlay
     deploy:
       resources:
         limits:
-          cpus: '1.00'
+          cpus: "1.00"
           memory: 1000M
 
   kafka_connect:
@@ -134,7 +134,8 @@ services:
     ports:
       - "8083:8083"
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: 'broker:29092'
+      # CONNECT_ properties are for the Connect worker
+      CONNECT_BOOTSTRAP_SERVERS: "broker:29092"
       CONNECT_REST_ADVERTISED_HOST_NAME: kafka_connect
       CONNECT_REST_PORT: 8083
       CONNECT_GROUP_ID: compose-connect-group
@@ -145,31 +146,41 @@ services:
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_TOPIC: docker-connect-status
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+      # CONNECT_SECURITY_PROTOCOL: SASL_SSL
+      # CONNECT_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="changeme";'
+      # CONNECT_SASL_MECHANISM: PLAIN
+
+      # CONNECT_CONSUMER_SASL_MECHANISM: "PLAIN"
+      # CONNECT_CONSUMER_SECURITY_PROTOCOL: "SASL_SSL"
+      # CONNECT_CONSUMER_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="changeme";'
+
+      # CONNECT_PRODUCER_SASL_MECHANISM: "PLAIN"
+      # CONNECT_PRODUCER_SECURITY_PROTOCOL: "SASL_SSL"
+      # CONNECT_PRODUCER_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="admin" password="changeme";'
+
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
       CONNECT_VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
       CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_connect_jaas.conf"
 
-      # CLASSPATH required due to CC-2422
-      # CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-6.2.0.jar
-      # CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
-      # CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
-      # CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
-      # CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
     volumes:
-      - ./kafka/kafka-connect/config/connect.password:/etc/kafka/connect.password
+      - ./kafka/kafka-connect/config/credentials.properties:/etc/kafka/credentials.properties
+      - ./kafka/kafka-connect/config/kafka_connect_jaas.conf:/etc/kafka/kafka_connect_jaas.conf
+
     networks:
       - overlay
     deploy:
       resources:
         limits:
-          cpus: '4.00'
+          cpus: "4.00"
           memory: 2000M
-
 
   postgres_db:
     image: debezium/postgres:latest
     environment:
-      POSTGRES_PASSWORD: changeme 
+      POSTGRES_PASSWORD: changeme
     ports:
       - 5432:5432
     networks:
@@ -179,16 +190,16 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.00'
+          cpus: "2.00"
           memory: 2000M
 
   postgres_pgadmin:
     image: dpage/pgadmin4
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech 
+      PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech
       PGADMIN_DEFAULT_PASSWORD: changeme
     ports:
-      - 18080:80 
+      - 18080:80
     networks:
       - overlay
     volumes:
@@ -196,7 +207,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.00'
+          cpus: "1.00"
           memory: 500M
 
 configs:
@@ -217,6 +228,6 @@ volumes:
   postgres_pgadmin:
   postgres_db:
   es_data:
-    name: 'es_data_{{.Task.Slot}}'
+    name: "es_data_{{.Task.Slot}}"
   broker_data:
   zookeeper_data:

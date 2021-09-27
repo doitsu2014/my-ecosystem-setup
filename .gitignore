@@ -10,3 +10,7 @@ Cargo.lock
 **/*.rs.bk
 
 **/secrets/certificates/*
+
+swarm/infrastructure/kafka/confluent-platform-security-tools/keystore/*
+swarm/infrastructure/kafka/confluent-platform-security-tools/truststore/*
+swarm/infrastructure/kafka/confluent-platform-security-tools/temps/*
