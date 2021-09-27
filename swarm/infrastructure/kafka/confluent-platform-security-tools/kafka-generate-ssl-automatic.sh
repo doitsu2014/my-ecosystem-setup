@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -eu
+
 TEMPS_DIRECTORY="temps"
 mkdir -p $TEMPS_DIRECTORY
 
@@ -149,7 +150,7 @@ echo "Now the CA will be imported into the keystore."
 echo
 keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$KEYSTORE_FILENAME -alias CARoot \
   -import -file $CA_CERT_FILE -keypass $PASS -storepass $PASS -noprompt
-# rm $CA_CERT_FILE # delete the trust store cert because it's stored in the trust store.
+rm $CA_CERT_FILE # delete the trust store cert because it's stored in the trust store.
 
 echo
 echo "Now the keystore's signed certificate will be imported back into the keystore."
@@ -167,6 +168,6 @@ echo "   (that was fulfilled)"
 echo " - '$KEYSTORE_SIGNED_CERT': the keystore's certificate, signed by the CA, and stored back"
 echo "    into the keystore"
 
-  # rm $KEYSTORE_SIGN_REQUEST_SRL
-  # rm $KEYSTORE_SIGN_REQUEST
-  # rm $KEYSTORE_SIGNED_CERT
+  rm $KEYSTORE_SIGN_REQUEST_SRL
+  rm $KEYSTORE_SIGN_REQUEST
+  rm $KEYSTORE_SIGNED_CERT
