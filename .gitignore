@@ -11,6 +11,7 @@ Cargo.lock
 
 **/secrets/certificates/*
 
-swarm/infrastructure/kafka/confluent-platform-security-tools/keystore/*
-swarm/infrastructure/kafka/confluent-platform-security-tools/truststore/*
-swarm/infrastructure/kafka/confluent-platform-security-tools/temps/*
+**/keystore/*
+**/truststore/*
+**/temps/*
+**/ca-cert
