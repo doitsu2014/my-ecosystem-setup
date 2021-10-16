@@ -1,35 +1,45 @@
-version: '3.8'
-
+version: "3"
 services:
+
   zookeeper:
     image: 'bitnami/zookeeper:latest'
     ports:
-     - '2181:2181'
+      - '2181:2181'
     environment:
-      - ZOO_ENABLE_AUTH=yes
-      - ZOO_SERVER_USERS=kafka
-      - ZOO_SERVER_PASSWORDS=changeme
-
+      - ALLOW_ANONYMOUS_LOGIN=yes
+      # - ZOO_ENABLE_AUTH=yes
+      # - ZOO_SERVER_USERS=kafka
+      # - ZOO_SERVER_PASSWORDS=changeme
   kafka:
     image: 'bitnami/kafka:latest'
-    hostname: local-kafka.doitsu.tech 
+    hostname: kafka.doitsu.tech
     ports:
-      - '9092'
+      - '9092:9092'
     environment:
+      - KAFKA_BROKER_ID=1
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_CFG_LISTENERS=SASL_SSL://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=SASL_SSL://:9092
-      - KAFKA_ZOOKEEPER_USER=kafka
-      - KAFKA_ZOOKEEPER_PASSWORD=changeme
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=SSL
+      - KAFKA_CFG_LISTENERS=SSL://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=SSL://kafka.doitsu.tech:9092
+      - KAFKA_CFG_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM=""
+      # - KAFKA_CFG_SASL_MECHANISM_INTER_BROKER_PROTOCOL=SCRAM-SHA-512
+      - KAFKA_CERTIFICATE_PASSWORD=zaQ@1234
+      - KAFKA_CFG_SSL_KEYSTORE_LOCATION=/opt/bitnami/kafka/config/certs/kafka.keystore.jks
+      - KAFKA_CFG_SSL_KEYSTORE_PASSWORD=zaQ@1234
+      - KAFKA_CFG_SSL_TRUSTSTORE_LOCATION=/opt/bitnami/kafka/config/certs/kafka.truststore.jks
+      - KAFKA_CFG_SSL_TRUSTSTORE_PASSWORD=zaQ@1234
 
-      - KAFKA_CLIENT_USER=kafkauser
+      - KAFKA_CLIENT_USER=kafkaclient
       - KAFKA_CLIENT_PASSWORD=changeme
-      - KAFKA_CERTIFICATE_PASSWORD=changeme
-      - KAFKA_TLS_TYPE=JKS # or PEM
+
+      # - KAFKA_ZOOKEEPER_PROTOCOL=SASL
+      # - KAFKA_ZOOKEEPER_USER=kafka
+      # - KAFKA_ZOOKEEPER_PASSWORD=changeme
+
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
     volumes:
-      # Both .jks and .pem files are supported
-      # - './kafka.keystore.pem:/opt/bitnami/kafka/config/certs/kafka.keystore.pem:ro'
-      # - './kafka.keystore.key:/opt/bitnami/kafka/config/certs/kafka.keystore.key:ro'
-      # - './kafka.truststore.pem:/opt/bitnami/kafka/config/certs/kafka.truststore.pem:ro'
-      - './kafka.keystore.jks:/opt/bitnami/kafka/config/certs/kafka.keystore.jks:ro'
-      - './kafka.truststore.jks:/opt/bitnami/kafka/config/certs/kafka.truststore.jks:ro'
+      - './secrets/keystore/kafka.keystore.jks:/opt/bitnami/kafka/config/certs/kafka.keystore.jks'
+      - './secrets/truststore/kafka.truststore.jks:/opt/bitnami/kafka/config/certs/kafka.truststore.jks'
+      - './secrets/jaas/default.jaas:/opt/bitnami/kafka/config/kafka_jaas.conf'
