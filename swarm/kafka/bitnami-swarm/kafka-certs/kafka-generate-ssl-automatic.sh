@@ -5,6 +5,7 @@ set -eu
 TEMPS_DIRECTORY="temps"
 mkdir -p $TEMPS_DIRECTORY
 
+KEYSTORE_POSTFIX="keystore.jks"
 KEYSTORE_FILENAME="kafka.keystore.jks"
 VALIDITY_IN_DAYS=3650
 DEFAULT_TRUSTSTORE_FILENAME="kafka.truststore.jks"
@@ -19,7 +20,12 @@ KEYSTORE_SIGNED_CERT="$TEMPS_DIRECTORY/cert-signed"
 COUNTRY=$COUNTRY
 STATE=$STATE
 OU=$ORGANIZATION_UNIT
-CN=$HOSTNAME
+TRUSTSTORE_CN=$TRUSTSTORE_CN
+
+KAFKA_BROKER_KEYSTORE_CN="broker.$TRUSTSTORE_CN"
+KAFKA_ZOOKEEPER_KEYSTORE_CN="zookeeper.$TRUSTSTORE_CN"
+
+# CN=$HOSTNAME
 LOCATION=$CITY
 PASS=$PASSWORD
 
@@ -67,7 +73,7 @@ trust_store_private_key_file=""
 
   openssl req -new -x509 -keyout $TRUSTSTORE_WORKING_DIRECTORY/ca-key \
     -out $TRUSTSTORE_WORKING_DIRECTORY/ca-cert -days $VALIDITY_IN_DAYS -nodes \
-    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCATION/O=$OU/CN=$CN"
+    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCATION/O=$OU/CN=*.$TRUSTSTORE_CN"
 
   trust_store_private_key_file="$TRUSTSTORE_WORKING_DIRECTORY/ca-key"
 
@@ -87,7 +93,7 @@ trust_store_private_key_file=""
 
   keytool -keystore $TRUSTSTORE_WORKING_DIRECTORY/$DEFAULT_TRUSTSTORE_FILENAME \
     -alias CARoot -import -file $TRUSTSTORE_WORKING_DIRECTORY/ca-cert \
-    -noprompt -dname "C=$COUNTRY, ST=$STATE, L=$LOCATION, O=$OU, CN=$CN" -keypass $PASS -storepass $PASS
+    -noprompt -dname "C=$COUNTRY, ST=$STATE, L=$LOCATION, O=$OU, CN=$TRUSTSTORE_CN" -keypass $PASS -storepass $PASS
 
   trust_store_file="$TRUSTSTORE_WORKING_DIRECTORY/$DEFAULT_TRUSTSTORE_FILENAME"
 
@@ -116,58 +122,30 @@ echo "           the FQDN. Some operating systems call the CN prompt 'first / la
 # To learn more about CNs and FQDNs, read:
 # https://docs.oracle.com/javase/7/docs/api/javax/net/ssl/X509ExtendedTrustManager.html
 
-keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$KEYSTORE_FILENAME \
-  -alias localhost -validity $VALIDITY_IN_DAYS -genkey -keyalg RSA \
-   -noprompt -dname "C=$COUNTRY, ST=$STATE, L=$LOCATION, O=$OU, CN=$CN" -keypass $PASS -storepass $PASS
+for i in broker1 broker2 broker3 zookeeper producer consumer
+do
+  keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$i.$KEYSTORE_POSTFIX \
+    -alias localhost -validity $VALIDITY_IN_DAYS -genkey -keyalg RSA \
+    -noprompt -dname "C=$COUNTRY, ST=$STATE, L=$LOCATION, O=$OU, CN=$i.$TRUSTSTORE_CN" -keypass $PASS -storepass $PASS
 
-echo
-echo "'$KEYSTORE_WORKING_DIRECTORY/$KEYSTORE_FILENAME' now contains a key pair and a"
-echo "self-signed certificate. Again, this keystore can only be used for one broker or"
-echo "one logical client. Other brokers or clients need to generate their own keystores."
+  keytool -keystore $trust_store_file -export -alias CARoot -rfc -file $CA_CERT_FILE -keypass $PASS -storepass $PASS
 
-echo
-echo "Fetching the certificate from the trust store and storing in $CA_CERT_FILE."
-echo
+  keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$i.$KEYSTORE_POSTFIX -alias localhost \
+    -certreq -file $KEYSTORE_SIGN_REQUEST -keypass $PASS -storepass $PASS
 
-keytool -keystore $trust_store_file -export -alias CARoot -rfc -file $CA_CERT_FILE -keypass $PASS -storepass $PASS
+  openssl x509 -req -CA $CA_CERT_FILE -CAkey $trust_store_private_key_file \
+    -in $KEYSTORE_SIGN_REQUEST -out $KEYSTORE_SIGNED_CERT \
+    -days $VALIDITY_IN_DAYS -CAcreateserial
 
-echo
-echo "Now a certificate signing request will be made to the keystore."
-echo
-keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$KEYSTORE_FILENAME -alias localhost \
-  -certreq -file $KEYSTORE_SIGN_REQUEST -keypass $PASS -storepass $PASS
+  keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$i.$KEYSTORE_POSTFIX -alias CARoot \
+    -import -file $CA_CERT_FILE -keypass $PASS -storepass $PASS -noprompt
+  rm $CA_CERT_FILE # delete the trust store cert because it's stored in the trust store.
 
-echo
-echo "Now the trust store's private key (CA) will sign the keystore's certificate."
-echo
-openssl x509 -req -CA $CA_CERT_FILE -CAkey $trust_store_private_key_file \
-  -in $KEYSTORE_SIGN_REQUEST -out $KEYSTORE_SIGNED_CERT \
-  -days $VALIDITY_IN_DAYS -CAcreateserial
-# creates $KEYSTORE_SIGN_REQUEST_SRL which is never used or needed.
-
-echo
-echo "Now the CA will be imported into the keystore."
-echo
-keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$KEYSTORE_FILENAME -alias CARoot \
-  -import -file $CA_CERT_FILE -keypass $PASS -storepass $PASS -noprompt
-rm $CA_CERT_FILE # delete the trust store cert because it's stored in the trust store.
-
-echo
-echo "Now the keystore's signed certificate will be imported back into the keystore."
-echo
-keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$KEYSTORE_FILENAME -alias localhost -import \
-  -file $KEYSTORE_SIGNED_CERT -keypass $PASS -storepass $PASS
-
-echo
-echo "All done!"
-echo
-echo "Deleting intermediate files. They are:"
-echo " - '$KEYSTORE_SIGN_REQUEST_SRL': CA serial number"
-echo " - '$KEYSTORE_SIGN_REQUEST': the keystore's certificate signing request"
-echo "   (that was fulfilled)"
-echo " - '$KEYSTORE_SIGNED_CERT': the keystore's certificate, signed by the CA, and stored back"
-echo "    into the keystore"
-
+  keytool -keystore $KEYSTORE_WORKING_DIRECTORY/$i.$KEYSTORE_POSTFIX -alias localhost -import \
+    -file $KEYSTORE_SIGNED_CERT -keypass $PASS -storepass $PASS
+ 
   rm $KEYSTORE_SIGN_REQUEST_SRL
   rm $KEYSTORE_SIGN_REQUEST
   rm $KEYSTORE_SIGNED_CERT
+
+done
