@@ -280,12 +280,12 @@ services:
         username=\"connect\" \
         password=\"connect-secret\";"
 
-      CONNECT_REST_EXTENSION_CLASSES: org.apache.kafka.connect.rest.basic.auth.extension.BasicAuthSecurityRestExtension
-      KAFKA_OPTS: "-Djava.security.auth.login.config=/kafka-connect.jaas.conf"
+      # CONNECT_REST_EXTENSION_CLASSES: org.apache.kafka.connect.rest.basic.auth.extension.BasicAuthSecurityRestExtension
+      # KAFKA_OPTS: "-Djava.security.auth.login.config=/kafka-connect.jaas.conf"
 
-    volumes:
-      - ./kafka/jaas_config/kafka-connect.jaas.conf:/kafka-connect.jaas.conf
-      - ./kafka/jaas_config/kafka-connect.password:/kafka-connect.password
+    # volumes:
+      # - ./kafka/jaas_config/kafka-connect.jaas.conf:/kafka-connect.jaas.conf
+      # - ./kafka/jaas_config/kafka-connect.password:/kafka-connect.password
     networks:
       - overlay
     deploy:
