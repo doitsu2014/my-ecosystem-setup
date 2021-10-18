@@ -1,55 +1,55 @@
 version: "3.8"
 
 services:
-  # es_node:
-  #   image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
-  #   ports:
-  #     - "9200:9200"
-  #     - "9300:9300"
-  #   configs:
-  #     - source: elastic_config
-  #       target: /usr/share/elasticsearch/config/elasticsearch.yml
-  #   environment:
-  #     network.publish_host: _eth0_
-  #     ES_JAVA_OPTS: "-Xmx256m -Xms256m"
-  #     ELASTIC_PASSWORD: changeme
-  #     # Set a predictable node name.
-  #     node.name: es_node.{{.Task.Slot}}
-  #     # Disable single-node discovery.
-  #     discovery.type: ""
-  #     # Use internal Docker round-robin DNS for unicast discovery.
-  #     discovery.seed_hosts: tasks.es_node
-  #     # Define initial masters, assuming a cluster size of at least 3.
-  #     cluster.initial_master_nodes: es_node.1,es_node.2,es_node.3
-  #   networks:
-  #     - overlay
-  #   volumes:
-  #     - es_data:/usr/share/elasticsearch/data
+  es_node:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    configs:
+      - source: elastic_config
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+    environment:
+      network.publish_host: _eth0_
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      ELASTIC_PASSWORD: changeme
+      # Set a predictable node name.
+      node.name: es_node.{{.Task.Slot}}
+      # Disable single-node discovery.
+      discovery.type: ""
+      # Use internal Docker round-robin DNS for unicast discovery.
+      discovery.seed_hosts: tasks.es_node
+      # Define initial masters, assuming a cluster size of at least 3.
+      cluster.initial_master_nodes: es_node.1,es_node.2,es_node.3
+    networks:
+      - overlay
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
 
-  #   deploy:
-  #     mode: replicated
-  #     replicas: 3
-  #     resources:
-  #       limits:
-  #         cpus: "3.00"
-  #         memory: 1000M
+    deploy:
+      mode: replicated
+      replicas: 3
+      resources:
+        limits:
+          cpus: "3.00"
+          memory: 1000M
 
-  # es_kibana:
-  #   image: docker.elastic.co/kibana/kibana:7.14.1
-  #   ports:
-  #     - "5601:5601"
-  #   configs:
-  #     - source: kibana_config
-  #       target: /usr/share/kibana/config/kibana.yml
-  #   networks:
-  #     - overlay
-  #   deploy:
-  #     mode: replicated
-  #     replicas: 1
-  #     resources:
-  #       limits:
-  #         cpus: "2.00"
-  #         memory: 500M
+  es_kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.1
+    ports:
+      - "5601:5601"
+    configs:
+      - source: kibana_config
+        target: /usr/share/kibana/config/kibana.yml
+    networks:
+      - overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 500M
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -219,7 +219,7 @@ services:
       CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       # CONNECT_PLUGIN_PATH: /usr/share/confluent-hub-components/confluentinc-kafka-connect-elasticsearch # only load one connector to speed up deployment (it is overidden in connect tests)
-      CONNECT_PLUGIN_PATH: /usr/share/confluent-hub-components/confluentinc-kafka-connect-elasticsearch # only load one connector to speed up deployment (it is overidden in connect tests)
+      CONNECT_PLUGIN_PATH: /usr/share/confluent-hub-components/confluentinc-kafka-connect-elasticsearch,/usr/share/confluent-hub-components/debezium-debezium-connector-postgresql
       CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
       # Confluent Monitoring Interceptors for Control Center Streams Monitoring
       CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
@@ -351,6 +351,11 @@ services:
       KSQL_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_MECHANISM: PLAIN
     networks:
       - overlay
+    deploy:
+      resources:
+        limits:
+          cpus: "4.00"
+          memory: 1000M
 
   ksqldb-cli:
     image: confluentinc/cp-ksqldb-cli:latest
@@ -418,51 +423,55 @@ services:
       CONTROL_CENTER_AUTH_RESTRICTED_ROLES: Restricted
       CONTROL_CENTER_AUTH_SESSION_EXPIRATION_MS: 600000
       CONTROL_CENTER_OPTS: "-Djava.security.auth.login.config=/propertyfile.jaas"
-
     volumes:
       - ./kafka/jaas_config/control-center.jaas.conf:/propertyfile.jaas
       - ./kafka/jaas_config/control-center-password.properties:/password.properties
-
     networks:
       - overlay
-  # postgres_db:
-  #   image: debezium/postgres:latest
-  #   environment:
-  #     POSTGRES_PASSWORD: changeme
-  #   ports:
-  #     - 5432:5432
-  #   networks:
-  #     - overlay
-  #   volumes:
-  #     - postgres_db:/var/lib/postgres
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: "2.00"
-  #         memory: 2000M
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 500M
 
-  # postgres_pgadmin:
-  #   image: dpage/pgadmin4
-  #   environment:
-  #     PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech
-  #     PGADMIN_DEFAULT_PASSWORD: changeme
-  #   ports:
-  #     - 18080:80
-  #   networks:
-  #     - overlay
-  #   volumes:
-  #     - postgres_pgadmin:/root/.pgadmin
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: "1.00"
-  #         memory: 500M
+  postgres_db:
+    image: debezium/postgres:latest
+    environment:
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - 5432:5432
+    networks:
+      - overlay
+    volumes:
+      - postgres_db:/var/lib/postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2000M
 
-# configs:
-#   elastic_config:
-#     file: ./elasticsearch/config/elasticsearch.yml
-#   kibana_config:
-#     file: ./kibana/config/kibana.yml
+  postgres_pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech
+      PGADMIN_DEFAULT_PASSWORD: changeme
+    ports:
+      - 18080:80
+    networks:
+      - overlay
+    volumes:
+      - postgres_pgadmin:/root/.pgadmin
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 500M
+
+configs:
+  elastic_config:
+    file: ./elasticsearch/config/elasticsearch.yml
+  kibana_config:
+    file: ./kibana/config/kibana.yml
 
 networks:
   overlay:
