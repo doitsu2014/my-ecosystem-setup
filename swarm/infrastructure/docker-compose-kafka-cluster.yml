@@ -21,6 +21,8 @@ services:
       - overlay
     volumes:
       - ./kafka-cluster/jaas_config/zookeeper.jaas.conf:/etc/kafka/zookeeper_server_jaas.conf
+      - zk_data:/var/lib/zookeeper/data
+      - zk_txn_log_data:/var/lib/zookeeper/log
     deploy:
       resources:
         limits:
@@ -101,11 +103,12 @@ services:
       - overlay
     volumes:
       - ./kafka-cluster/jaas_config/kafka.jaas.conf:/etc/kafka/kafka_server_jaas.conf
+      - broker_data:/var/lib/kafka/data
     deploy:
       resources:
         limits:
-          cpus: "2.00"
-          memory: 1000M
+          cpus: "4.00"
+          memory: 2000M
 
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
@@ -386,4 +389,5 @@ services:
 
 volumes:
   broker_data:
-  zookeeper_data:
+  zk_data:
+  zk_txn_log_data:
