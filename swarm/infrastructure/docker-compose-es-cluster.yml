@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+  es_node:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    configs:
+      - source: elastic_config
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+    environment:
+      network.publish_host: _eth0_
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      ELASTIC_PASSWORD: changeme
+      # Set a predictable node name.
+      node.name: es_node.{{.Task.Slot}}
+      # Disable single-node discovery.
+      discovery.type: ""
+      # Use internal Docker round-robin DNS for unicast discovery.
+      discovery.seed_hosts: tasks.es_node
+      # Define initial masters, assuming a cluster size of at least 3.
+      cluster.initial_master_nodes: es_node.1,es_node.2,es_node.3
+    networks:
+      - overlay
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1000M
+
+  es_kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.1
+    ports:
+      - "5601:5601"
+    configs:
+      - source: kibana_config
+        target: /usr/share/kibana/config/kibana.yml
+    networks:
+      - overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 500M
+
+configs:
+  elastic_config:
+    file: ./es-cluster/elasticsearch/config/elasticsearch.yml
+  kibana_config:
+    file: ./es-cluster/kibana/config/kibana.yml
+
+volumes:
+  es_data:
+    name: "es_data_{{.Task.Slot}}"

@@ -1,0 +1,492 @@
+version: "3.8"
+
+services:
+  es_node:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    configs:
+      - source: elastic_config
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+    environment:
+      network.publish_host: _eth0_
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      ELASTIC_PASSWORD: changeme
+      # Set a predictable node name.
+      node.name: es_node.{{.Task.Slot}}
+      # Disable single-node discovery.
+      discovery.type: ""
+      # Use internal Docker round-robin DNS for unicast discovery.
+      discovery.seed_hosts: tasks.es_node
+      # Define initial masters, assuming a cluster size of at least 3.
+      cluster.initial_master_nodes: es_node.1,es_node.2,es_node.3
+    networks:
+      - overlay
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+
+    deploy:
+      mode: replicated
+      replicas: 1 
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1000M
+
+  es_kibana:
+    image: docker.elastic.co/kibana/kibana:7.14.1
+    ports:
+      - "5601:5601"
+    configs:
+      - source: kibana_config
+        target: /usr/share/kibana/config/kibana.yml
+    networks:
+      - overlay
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 500M
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      KAFKA_JMX_PORT: 9999
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_OPTS:
+        -Djava.security.auth.login.config=/etc/kafka/zookeeper_server_jaas.conf
+        -Dzookeeper.authProvider.1=org.apache.zookeeper.server.auth.SASLAuthenticationProvider
+        -Dzookeeper.allowSaslFailedClients=false
+        -Dzookeeper.requireClientAuthScheme=sasl
+    networks:
+      - overlay
+    volumes:
+      - ./kafka/jaas_config/zookeeper.jaas.conf:/etc/kafka/zookeeper_server_jaas.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 500M
+
+  broker:
+    image: confluentinc/cp-server:latest
+    hostname: broker
+    container_name: broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+      - "10000:10000"
+    environment:
+      KAFKA_JMX_PORT: 10000
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CONFLUENT_SUPPORT_CUSTOMER_ID: "anonymous"
+      # Confluent Metrics Reporter for Control Center Cluster Monitoring
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:9092
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      CONFLUENT_METRICS_ENABLE: "true"
+      # for 5.4.x:
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      # for 6.0.0
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      # # For Confluent Telemetry Reporter (proactive support)
+      # KAFKA_CONFLUENT_TELEMETRY_ENABLED: 'true'
+      # KAFKA_CONFLUENT_TELEMETRY_API_KEY: 'CLOUD_API_KEY'
+      # KAFKA_CONFLUENT_TELEMETRY_API_SECRET: 'CLOUD_API_SECRET'
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:SASL_PLAINTEXT,HOST:SASL_PLAINTEXT
+      KAFKA_LISTENERS: EXTERNAL://:9092,HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://broker:9092,HOST://localhost:29092
+      KAFKA_LISTENER_NAME_EXTERNAL_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_LISTENER_NAME_EXTERNAL_PLAIN_SASL_JAAS_CONFIG: |
+        org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username="broker" \
+        password="broker" \
+        user_broker="broker" \
+        user_controlcenter="controlcenter-secret" \
+        user_schemaregistry="schemaregistry-secret" \
+        user_ksqldb="ksqldb-secret" \
+        user_connect="connect-secret" \
+        user_sftp="sftp-secret" \
+        user_client="client-secret";
+      KAFKA_LISTENER_NAME_HOST_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_LISTENER_NAME_HOST_PLAIN_SASL_JAAS_CONFIG: |
+        org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username="broker" \
+        password="broker" \
+        user_broker="broker" \
+        user_controlcenter="controlcenter-secret" \
+        user_schemaregistry="schemaregistry-secret" \
+        user_ksqldb="ksqldb-secret" \
+        user_connect="connect-secret" \
+        user_sftp="sftp-secret" \
+        user_client="client-secret";
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+      KAFKA_INTER_BROKER_LISTENER_NAME: EXTERNAL
+      CONFLUENT_METRICS_REPORTER_SASL_MECHANISM: PLAIN
+      CONFLUENT_METRICS_REPORTER_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONFLUENT_METRICS_REPORTER_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"client\" \
+        password=\"client-secret\";"
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf"
+
+      
+
+    networks:
+      - overlay
+    volumes:
+      - ./kafka/jaas_config/kafka.jaas.conf:/etc/kafka/kafka_server_jaas.conf
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1000M
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    hostname: schema-registry
+    container_name: schema-registry
+    depends_on:
+      - broker
+    ports:
+      - "8081:8081"
+      - "10001:10001"
+    environment:
+      SCHEMA_REGISTRY_JMX_PORT: 10001
+      SCHEMA_REGISTRY_JMX_HOSTNAME: localhost
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: broker:9092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM: PLAIN
+      SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"schemaregistry\" \
+        password=\"schemaregistry-secret\";"
+
+    networks:
+      - overlay
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1000M
+
+  connect:
+    image: vdesabou/kafka-docker-playground-connect:6.2.1
+    hostname: connect
+    container_name: connect
+    depends_on:
+      - broker
+      - schema-registry
+    ports:
+      - "5005:5005"
+      - "8083:8083"
+      - "10002:10002"
+
+    environment:
+      KAFKA_JMX_PORT: 10002
+      KAFKA_JMX_HOSTNAME: localhost
+      CONNECT_BOOTSTRAP_SERVERS: broker:9092
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_GROUP_ID: "connect-cluster"
+      CONNECT_PRODUCER_CLIENT_ID: "connect-worker-producer"
+      CONNECT_CONFIG_STORAGE_TOPIC: connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.storage.StringConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      # CONNECT_PLUGIN_PATH: /usr/share/confluent-hub-components/confluentinc-kafka-connect-elasticsearch # only load one connector to speed up deployment (it is overidden in connect tests)
+      CONNECT_PLUGIN_PATH: /usr/share/confluent-hub-components/confluentinc-kafka-connect-elasticsearch,/usr/share/confluent-hub-components/debezium-debezium-connector-postgresql
+      CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
+      # Confluent Monitoring Interceptors for Control Center Streams Monitoring
+      CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: broker:9092
+      CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_BOOTSTRAP_SERVERS: broker:9092
+      # Externalizing Secrets
+      CONNECT_CONFIG_PROVIDERS: "file"
+      CONNECT_CONFIG_PROVIDERS_FILE_CLASS: "org.apache.kafka.common.config.provider.FileConfigProvider"
+      # CONNECT_LOG4J_ROOT_LOGLEVEL: DEBUG
+      # KIP-158 https://cwiki.apache.org/confluence/display/KAFKA/KIP-158%3A+Kafka+Connect+should+allow+source+connectors+to+set+topic-specific+settings+for+new+topics (6.x only)
+      CONNECT_TOPIC_CREATION_ENABLE: "true"
+      # CONNECT_METRIC_REPORTERS: io.confluent.telemetry.reporter.TelemetryReporter
+      # CONNECT_CONFLUENT_TELEMETRY_ENABLED: 'true'
+      # CONNECT_CONFLUENT_TELEMETRY_API_KEY: 'CLOUD_API_KEY'
+      # CONNECT_CONFLUENT_TELEMETRY_API_SECRET: 'CLOUD_API_SECRET'
+      CONNECT_CONNECTOR_CLIENT_CONFIG_OVERRIDE_POLICY: All
+      CONNECT_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "[%d] %p %X{connector.context}%m (%c:%L)%n"
+      # https://github.com/vdesabou/kafka-docker-playground/issues/1381
+      # Enable KAFKA_DEBUG for debugging remotely connect container #1381
+      # KAFKA_DEBUG: 'true'
+      # DEBUG_SUSPEND_FLAG: 'y'
+
+      # Configure the Connect workers to use SASL/PLAIN.
+      CONNECT_SASL_MECHANISM: PLAIN
+      CONNECT_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      # JAAS
+      CONNECT_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"connect\" \
+        password=\"connect-secret\";"
+      # producer
+      CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"connect\" \
+        password=\"connect-secret\";"
+      CONNECT_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_MECHANISM: PLAIN
+      # consumer
+      CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"connect\" \
+        password=\"connect-secret\";"
+      CONNECT_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_MECHANISM: PLAIN
+      # producer
+      CONNECT_PRODUCER_SASL_MECHANISM: PLAIN
+      CONNECT_PRODUCER_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONNECT_PRODUCER_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"connect\" \
+        password=\"connect-secret\";"
+      # consumer
+      CONNECT_CONSUMER_SASL_MECHANISM: PLAIN
+      CONNECT_CONSUMER_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONNECT_CONSUMER_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"connect\" \
+        password=\"connect-secret\";"
+
+      CONNECT_REST_EXTENSION_CLASSES: org.apache.kafka.connect.rest.basic.auth.extension.BasicAuthSecurityRestExtension
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/kafka-connect.jaas.conf"
+
+    volumes:
+      - ./kafka/jaas_config/kafka-connect.jaas.conf:/kafka-connect.jaas.conf
+      - ./kafka/jaas_config/kafka-connect.password:/kafka-connect.password
+    networks:
+      - overlay
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2000M
+
+  ksqldb-server:
+    image: confluentinc/cp-ksqldb-server:latest
+    hostname: ksqldb-server
+    container_name: ksqldb-server
+    depends_on:
+      - broker
+      - connect
+    ports:
+      - "8088:8088"
+      - "10003:10003"
+    environment:
+      KSQL_JMX_PORT: 10003
+      KSQL_JMX_HOSTNAME: localhost
+      KSQL_LISTENERS: http://0.0.0.0:8088
+      KSQL_BOOTSTRAP_SERVERS: broker:9092
+      KSQL_CACHE_MAX_BYTES_BUFFERING: 0
+      KSQL_KSQL_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      KSQL_KSQL_CONNECT_URL: "http://connect:8083"
+      # KSQL_KSQL_STREAMS_PROCESSING_GUARANTEE=exactly_once
+      # --- ksqlDB Server log config ---
+      KSQL_LOG4J_ROOT_LOGLEVEL: "INFO"
+      KSQL_LOG4J_LOGGERS: "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR"
+      # --- ksqlDB processing log config ---
+      # KSQL_LOG4J_PROCESSING_LOG_BROKERLIST: broker:9092
+      # KSQL_LOG4J_PROCESSING_LOG_TOPIC: ksql_processing_log
+      # KSQL_KSQL_LOGGING_PROCESSING_TOPIC_NAME: ksql_processing_log
+      # KSQL_KSQL_LOGGING_PROCESSING_TOPIC_AUTO_CREATE: "true"
+      # KSQL_KSQL_LOGGING_PROCESSING_STREAM_AUTO_CREATE: "true"
+      # KSQL_KSQL_LOGGING_PROCESSING_ROWS_INCLUDE: 'true'
+      KSQL_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      KSQL_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      # KSQL_METRIC_REPORTERS: io.confluent.telemetry.reporter.TelemetryReporter
+      # KSQL_CONFLUENT_TELEMETRY_ENABLED: 'true'
+      # KSQL_CONFLUENT_TELEMETRY_API_KEY: 'CLOUD_API_KEY'
+      # KSQL_CONFLUENT_TELEMETRY_API_SECRET: 'CLOUD_API_SECRET'
+      KSQL_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      KSQL_SASL_MECHANISM: PLAIN
+      KSQL_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"ksqldb\" \
+        password=\"ksqldb-secret\";"
+      # producer
+      KSQL_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      KSQL_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"ksqldb\" \
+        password=\"ksqldb-secret\";"
+      KSQL_PRODUCER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_MECHANISM: PLAIN
+      # consumer
+      KSQL_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      KSQL_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"ksqldb\" \
+        password=\"ksqldb-secret\";"
+      KSQL_CONSUMER_CONFLUENT_MONITORING_INTERCEPTOR_SASL_MECHANISM: PLAIN
+    networks:
+      - overlay
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1000M
+
+  ksqldb-cli:
+    image: confluentinc/cp-ksqldb-cli:latest
+    container_name: ksqldb-cli
+    depends_on:
+      - broker
+      - connect
+      - ksqldb-server
+    entrypoint: /bin/sh
+    tty: true
+    networks:
+      - overlay
+
+  control-center:
+    image: confluentinc/cp-enterprise-control-center:latest
+    hostname: control-center
+    container_name: control-center
+    restart: always
+    depends_on:
+      - zookeeper
+      - broker
+      - schema-registry
+      - connect
+    ports:
+      - "9021:9021"
+    environment:
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: "broker:9092"
+      CONTROL_CENTER_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      # CONTROL_CENTER_CONNECT_CLUSTER: http://connect:8083 # deprecated
+      # CONTROL_CENTER_CONNECT_MYCONNECT_CLUSTER: http://connect:8083
+      CONTROL_CENTER_KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
+      CONTROL_CENTER_REPLICATION_FACTOR: 1
+      CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
+      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+      CONTROL_CENTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONFLUENT_METRICS_TOPIC_REPLICATION: 1
+      CONTROL_CENTER_KAFKA_MYCLUSTER_BOOTSTRAP_SERVERS: "broker:9092"
+      CONTROL_CENTER_UI_AUTOUPDATE_ENABLE: "true"
+      CONTROL_CENTER_KSQL_URL: "http://ksqldb-server:8088" # deprecated
+      CONTROL_CENTER_KSQL_ADVERTISED_URL: "http://127.0.0.1:8088" # deprecated
+      CONTROL_CENTER_KSQL_MYKSQL_URL: "http://ksqldb-server:8088"
+      CONTROL_CENTER_KSQL_MYKSQL_ADVERTISED_URL: "http://127.0.0.1:8088"
+      CONTROL_CENTER_COMMAND_TOPIC_REPLICATION: 1
+      CONTROL_CENTER_METRICS_TOPIC_REPLICATION: 1
+      # METRIC_REPORTERS: io.confluent.telemetry.reporter.TelemetryReporter
+      # CONFLUENT_TELEMETRY_ENABLED: 'true'
+      # CONFLUENT_TELEMETRY_API_KEY: 'CLOUD_API_KEY'
+      # CONFLUENT_TELEMETRY_API_SECRET: 'CLOUD_API_SECRET'
+      CONTROL_CENTER_STREAMS_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONTROL_CENTER_STREAMS_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"client\" \
+        password=\"client-secret\";"
+      CONTROL_CENTER_STREAMS_SASL_MECHANISM: PLAIN
+      CONTROL_CENTER_KAFKA_MYCLUSTER_SECURITY_PROTOCOL: SASL_PLAINTEXT
+      CONTROL_CENTER_KAFKA_MYCLUSTER_SASL_JAAS_CONFIG:
+        "org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username=\"client\" \
+        password=\"client-secret\";"
+      CONTROL_CENTER_KAFKA_MYCLUSTER_SASL_MECHANISM: PLAIN
+
+      CONTROL_CENTER_REST_AUTHENTICATION_METHOD: BASIC
+      CONTROL_CENTER_REST_AUTHENTICATION_REALM: c3
+      CONTROL_CENTER_REST_AUTHENTICATION_ROLES: Administrators,Restricted
+      CONTROL_CENTER_AUTH_RESTRICTED_ROLES: Restricted
+      CONTROL_CENTER_AUTH_SESSION_EXPIRATION_MS: 600000
+      CONTROL_CENTER_OPTS: "-Djava.security.auth.login.config=/propertyfile.jaas"
+    volumes:
+      - ./kafka/jaas_config/control-center.jaas.conf:/propertyfile.jaas
+      - ./kafka/jaas_config/control-center-password.properties:/password.properties
+    networks:
+      - overlay
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 500M
+
+  postgres_db:
+    image: debezium/postgres:latest
+    environment:
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - 5432:5432
+    networks:
+      - overlay
+    volumes:
+      - postgres_db:/var/lib/postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2000M
+
+  postgres_pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech
+      PGADMIN_DEFAULT_PASSWORD: changeme
+    ports:
+      - 18080:80
+    networks:
+      - overlay
+    volumes:
+      - postgres_pgadmin:/root/.pgadmin
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 500M
+
+configs:
+  elastic_config:
+    file: ./elasticsearch/config/elasticsearch.yml
+  kibana_config:
+    file: ./kibana/config/kibana.yml
+
+networks:
+  overlay:
+    driver: overlay
+    attachable: true
+    ipam:
+      config:
+        - subnet: 10.113.0.0/16
+
+volumes:
+  postgres_pgadmin:
+  postgres_db:
+  es_data:
+    name: "es_data_{{.Task.Slot}}"
+  broker_data:
+  zookeeper_data:

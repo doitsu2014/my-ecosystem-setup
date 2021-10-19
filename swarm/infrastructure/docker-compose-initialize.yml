@@ -1,0 +1,9 @@
+version: "3.8"
+
+networks:
+  overlay:
+    driver: overlay
+    attachable: true
+    ipam:
+      config:
+        - subnet: 10.113.0.0/16

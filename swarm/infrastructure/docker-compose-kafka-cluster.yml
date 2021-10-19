@@ -1,56 +1,6 @@
 version: "3.8"
 
 services:
-  es_node:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    configs:
-      - source: elastic_config
-        target: /usr/share/elasticsearch/config/elasticsearch.yml
-    environment:
-      network.publish_host: _eth0_
-      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
-      ELASTIC_PASSWORD: changeme
-      # Set a predictable node name.
-      node.name: es_node.{{.Task.Slot}}
-      # Disable single-node discovery.
-      discovery.type: ""
-      # Use internal Docker round-robin DNS for unicast discovery.
-      discovery.seed_hosts: tasks.es_node
-      # Define initial masters, assuming a cluster size of at least 3.
-      cluster.initial_master_nodes: es_node.1,es_node.2,es_node.3
-    networks:
-      - overlay
-    volumes:
-      - es_data:/usr/share/elasticsearch/data
-
-    deploy:
-      mode: replicated
-      replicas: 3
-      resources:
-        limits:
-          cpus: "3.00"
-          memory: 1000M
-
-  es_kibana:
-    image: docker.elastic.co/kibana/kibana:7.14.1
-    ports:
-      - "5601:5601"
-    configs:
-      - source: kibana_config
-        target: /usr/share/kibana/config/kibana.yml
-    networks:
-      - overlay
-    deploy:
-      mode: replicated
-      replicas: 1
-      resources:
-        limits:
-          cpus: "2.00"
-          memory: 500M
-
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     hostname: zookeeper
@@ -70,12 +20,12 @@ services:
     networks:
       - overlay
     volumes:
-      - ./kafka/jaas_config/zookeeper.jaas.conf:/etc/kafka/zookeeper_server_jaas.conf
+      - ./kafka-cluster/jaas_config/zookeeper.jaas.conf:/etc/kafka/zookeeper_server_jaas.conf
     deploy:
       resources:
         limits:
           cpus: "2.00"
-          memory: 1000M
+          memory: 500M
 
   broker:
     image: confluentinc/cp-server:latest
@@ -88,6 +38,28 @@ services:
       - "29092:29092"
       - "10000:10000"
     environment:
+      KAFKA_JMX_PORT: 10000
+      KAFKA_JMX_HOSTNAME: localhost
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      CONFLUENT_SUPPORT_CUSTOMER_ID: "anonymous"
+      # Confluent Metrics Reporter for Control Center Cluster Monitoring
+      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:9092
+      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      CONFLUENT_METRICS_ENABLE: "true"
+      # for 5.4.x:
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      # for 6.0.0
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      # # For Confluent Telemetry Reporter (proactive support)
+      # KAFKA_CONFLUENT_TELEMETRY_ENABLED: 'true'
+      # KAFKA_CONFLUENT_TELEMETRY_API_KEY: 'CLOUD_API_KEY'
+      # KAFKA_CONFLUENT_TELEMETRY_API_SECRET: 'CLOUD_API_SECRET'
+
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:SASL_PLAINTEXT,HOST:SASL_PLAINTEXT
       KAFKA_LISTENERS: EXTERNAL://:9092,HOST://:29092
       KAFKA_ADVERTISED_LISTENERS: EXTERNAL://broker:9092,HOST://localhost:29092
@@ -125,37 +97,15 @@ services:
         password=\"client-secret\";"
       KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/kafka_server_jaas.conf"
 
-      KAFKA_JMX_PORT: 10000
-      KAFKA_JMX_HOSTNAME: localhost
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      CONFLUENT_SUPPORT_CUSTOMER_ID: "anonymous"
-      # Confluent Metrics Reporter for Control Center Cluster Monitoring
-      KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
-      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: broker:9092
-      CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
-      CONFLUENT_METRICS_ENABLE: "true"
-      # for 5.4.x:
-      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
-      # for 6.0.0
-      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      # # For Confluent Telemetry Reporter (proactive support)
-      # KAFKA_CONFLUENT_TELEMETRY_ENABLED: 'true'
-      # KAFKA_CONFLUENT_TELEMETRY_API_KEY: 'CLOUD_API_KEY'
-      # KAFKA_CONFLUENT_TELEMETRY_API_SECRET: 'CLOUD_API_SECRET'
-
     networks:
       - overlay
     volumes:
-      - ./kafka/jaas_config/kafka.jaas.conf:/etc/kafka/kafka_server_jaas.conf
+      - ./kafka-cluster/jaas_config/kafka.jaas.conf:/etc/kafka/kafka_server_jaas.conf
     deploy:
       resources:
         limits:
-          cpus: "4.00"
-          memory: 2000M
+          cpus: "2.00"
+          memory: 1000M
 
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
@@ -280,18 +230,18 @@ services:
         username=\"connect\" \
         password=\"connect-secret\";"
 
-      # CONNECT_REST_EXTENSION_CLASSES: org.apache.kafka.connect.rest.basic.auth.extension.BasicAuthSecurityRestExtension
-      # KAFKA_OPTS: "-Djava.security.auth.login.config=/kafka-connect.jaas.conf"
+      CONNECT_REST_EXTENSION_CLASSES: org.apache.kafka.connect.rest.basic.auth.extension.BasicAuthSecurityRestExtension
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/kafka-connect.jaas.conf"
 
-    # volumes:
-      # - ./kafka/jaas_config/kafka-connect.jaas.conf:/kafka-connect.jaas.conf
-      # - ./kafka/jaas_config/kafka-connect.password:/kafka-connect.password
+    volumes:
+      - ./kafka-cluster/jaas_config/kafka-connect.jaas.conf:/kafka-connect.jaas.conf
+      - ./kafka-cluster/jaas_config/kafka-connect.password:/kafka-connect.password
     networks:
       - overlay
     deploy:
       resources:
         limits:
-          cpus: "4.00"
+          cpus: "2.00"
           memory: 2000M
 
   ksqldb-server:
@@ -354,7 +304,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4.00"
+          cpus: "2.00"
           memory: 1000M
 
   ksqldb-cli:
@@ -384,8 +334,8 @@ services:
     environment:
       CONTROL_CENTER_BOOTSTRAP_SERVERS: "broker:9092"
       CONTROL_CENTER_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      CONTROL_CENTER_CONNECT_CLUSTER: http://connect:8083 # deprecated
-      CONTROL_CENTER_CONNECT_MYCONNECT_CLUSTER: http://connect:8083
+      # CONTROL_CENTER_CONNECT_CLUSTER: http://connect:8083 # deprecated
+      # CONTROL_CENTER_CONNECT_MYCONNECT_CLUSTER: http://connect:8083
       CONTROL_CENTER_KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
       CONTROL_CENTER_REPLICATION_FACTOR: 1
       CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
@@ -424,8 +374,8 @@ services:
       CONTROL_CENTER_AUTH_SESSION_EXPIRATION_MS: 600000
       CONTROL_CENTER_OPTS: "-Djava.security.auth.login.config=/propertyfile.jaas"
     volumes:
-      - ./kafka/jaas_config/control-center.jaas.conf:/propertyfile.jaas
-      - ./kafka/jaas_config/control-center-password.properties:/password.properties
+      - ./kafka-cluster/jaas_config/control-center.jaas.conf:/propertyfile.jaas
+      - ./kafka-cluster/jaas_config/control-center-password.properties:/password.properties
     networks:
       - overlay
     deploy:
@@ -433,58 +383,7 @@ services:
         limits:
           cpus: "2.00"
           memory: 500M
-
-  postgres_db:
-    image: debezium/postgres:latest
-    environment:
-      POSTGRES_PASSWORD: changeme
-    ports:
-      - 5432:5432
-    networks:
-      - overlay
-    volumes:
-      - postgres_db:/var/lib/postgres
-    deploy:
-      resources:
-        limits:
-          cpus: "2.00"
-          memory: 2000M
-
-  postgres_pgadmin:
-    image: dpage/pgadmin4
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech
-      PGADMIN_DEFAULT_PASSWORD: changeme
-    ports:
-      - 18080:80
-    networks:
-      - overlay
-    volumes:
-      - postgres_pgadmin:/root/.pgadmin
-    deploy:
-      resources:
-        limits:
-          cpus: "1.00"
-          memory: 500M
-
-configs:
-  elastic_config:
-    file: ./elasticsearch/config/elasticsearch.yml
-  kibana_config:
-    file: ./kibana/config/kibana.yml
-
-networks:
-  overlay:
-    driver: overlay
-    attachable: true
-    ipam:
-      config:
-        - subnet: 10.113.0.0/16
 
 volumes:
-  postgres_pgadmin:
-  postgres_db:
-  es_data:
-    name: "es_data_{{.Task.Slot}}"
   broker_data:
   zookeeper_data:

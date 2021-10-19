@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  postgres_db:
+    image: debezium/postgres:latest
+    environment:
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - 5432:5432
+    networks:
+      - overlay
+    volumes:
+      - postgres_db:/var/lib/postgres
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2000M
+
+  postgres_pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@doitsu.tech
+      PGADMIN_DEFAULT_PASSWORD: changeme
+    ports:
+      - 18080:80
+    networks:
+      - overlay
+    volumes:
+      - postgres_pgadmin:/root/.pgadmin
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 500M
+
+volumes:
+  postgres_pgadmin:
+  postgres_db:
