@@ -24,6 +24,11 @@ services:
       - zk_data:/var/lib/zookeeper/data
       - zk_txn_log_data:/var/lib/zookeeper/log
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
       resources:
         limits:
           cpus: "2.00"
@@ -105,6 +110,11 @@ services:
       - ./kafka-cluster/jaas_config/kafka.jaas.conf:/etc/kafka/kafka_server_jaas.conf
       - broker_data:/var/lib/kafka/data
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
       resources:
         limits:
           cpus: "4.00"
@@ -135,6 +145,11 @@ services:
     networks:
       - overlay
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
       resources:
         limits:
           cpus: "1.00"
@@ -233,8 +248,8 @@ services:
         username=\"connect\" \
         password=\"connect-secret\";"
 
-      CONNECT_REST_EXTENSION_CLASSES: org.apache.kafka.connect.rest.basic.auth.extension.BasicAuthSecurityRestExtension
-      KAFKA_OPTS: "-Djava.security.auth.login.config=/kafka-connect.jaas.conf"
+      # CONNECT_REST_EXTENSION_CLASSES: org.apache.kafka.connect.rest.basic.auth.extension.BasicAuthSecurityRestExtension
+      # KAFKA_OPTS: "-Djava.security.auth.login.config=/kafka-connect.jaas.conf"
 
     volumes:
       - ./kafka-cluster/jaas_config/kafka-connect.jaas.conf:/kafka-connect.jaas.conf
@@ -242,6 +257,11 @@ services:
     networks:
       - overlay
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
       resources:
         limits:
           cpus: "2.00"
@@ -338,7 +358,7 @@ services:
       CONTROL_CENTER_BOOTSTRAP_SERVERS: "broker:9092"
       CONTROL_CENTER_ZOOKEEPER_CONNECT: "zookeeper:2181"
       # CONTROL_CENTER_CONNECT_CLUSTER: http://connect:8083 # deprecated
-      # CONTROL_CENTER_CONNECT_MYCONNECT_CLUSTER: http://connect:8083
+      CONTROL_CENTER_CONNECT_MYCONNECT_CLUSTER: http://connect:8083
       CONTROL_CENTER_KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
       CONTROL_CENTER_REPLICATION_FACTOR: 1
       CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
@@ -384,8 +404,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.00"
-          memory: 500M
+          cpus: "4.00"
+          memory: 2000M
 
 volumes:
   broker_data:

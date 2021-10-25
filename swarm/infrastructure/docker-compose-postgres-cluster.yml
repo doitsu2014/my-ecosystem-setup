@@ -12,6 +12,11 @@ services:
     volumes:
       - postgres_db:/var/lib/postgres
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
       resources:
         limits:
           cpus: "2.00"
@@ -29,6 +34,11 @@ services:
     volumes:
       - postgres_pgadmin:/root/.pgadmin
     deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
       resources:
         limits:
           cpus: "1.00"
