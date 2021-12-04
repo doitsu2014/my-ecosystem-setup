@@ -45,5 +45,5 @@ services:
           memory: 500M
 
 volumes:
-  postgres_pgadmin:
-  postgres_db:
+  postgres_pgadmin: null
+  postgres_db: null
