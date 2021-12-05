@@ -5,7 +5,8 @@ x-minio-common: &minio-common
   image: quay.io/minio/minio:RELEASE.2021-11-24T23-19-33Z
   command: server --console-address ":9001" http://minio{1...4}/data
   networks:
-    - minio_network
+    - minio_ingress_network
+    - overlay
   expose:
     - "9000"
     - "9001"
@@ -65,8 +66,7 @@ services:
       - "19000:19000"
       - "19001:19001"
     networks:
-      - minio_network
-      - overlay
+      - minio_ingress_network
     depends_on:
       - minio1
       - minio2
@@ -82,5 +82,5 @@ volumes:
   minio_data4:
 
 networks:
-  minio_network:
+  minio_ingress_network:
     driver: overlay
