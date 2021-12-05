@@ -1,0 +1,34 @@
+version: "3.8"
+services:
+  redis:
+    image: "bitnami/redis:latest"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/bitnami/redis/data
+    environment:
+      - REDIS_PASSWORD=zaQ@1234
+    networks:
+      redis_network:
+        ipv4_address: 172.28.1.4
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 1000M
+
+# networking for the Redis container
+networks:
+  redis_network:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  redis_data:
